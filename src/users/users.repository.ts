@@ -8,10 +8,14 @@ import {
     ConflictException,
     InternalServerErrorException,
 } from '@nestjs/common';
+import { CredentialsDto } from '../auth/dtos/credentials.dto';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
-    async createUser(createUserDto: CreateUserDto, role: UserRole): Promise<User> {
+    async createUser(
+        createUserDto: CreateUserDto,
+        role: UserRole,
+    ): Promise<User> {
         const { email, name, password } = createUserDto;
 
         const user = this.create();
@@ -21,9 +25,7 @@ export class UserRepository extends Repository<User> {
         user.status = true;
         user.confirmationToken = crypto.randomBytes(32).toString('hex');
         user.salt = await bcrypt.genSalt();
-        console.log(user)
         user.password = await this.hashPassword(password, user.salt);
-
         try {
             await user.save();
             delete user.password;
@@ -37,6 +39,17 @@ export class UserRepository extends Repository<User> {
                     'Erro ao salvar o usuário no banco de dados',
                 );
             }
+        }
+    }
+
+    async checkCredentials(credentialsDto: CredentialsDto): Promise<User> {
+        const { email, password } = credentialsDto;
+        const user = await this.findOne({ email, status: true });
+
+        if (user && (await user.checkPassword(password))) {
+            return user;
+        } else {
+            return null;
         }
     }
 
